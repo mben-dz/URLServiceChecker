@@ -1,0 +1,78 @@
+program URLServiceChecker;
+
+{$APPTYPE CONSOLE}
+
+uses
+  Winapi.WinInet,
+  Winapi.Windows,
+  System.SysUtils,
+  MMSystem;
+
+type
+  HINTERNET = Pointer;
+  PHINTERNET = ^HINTERNET;
+  LPHINTERNET = PHINTERNET;
+
+  INTERNET_PORT = Word;
+  PINTERNET_PORT = ^INTERNET_PORT;
+  LPINTERNET_PORT = PINTERNET_PORT;
+
+function IsServiceOpen(const URL: string): Boolean;
+var
+  hInternet: HINTERNET;
+  hConnect: HINTERNET;
+  dwStatusCode: DWORD;
+  dwBufferSize: DWORD;
+  lpdwReserved: DWORD;
+begin
+  Result := False;
+
+  hInternet := InternetOpen('URLChecker', INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+  if Assigned(hInternet) then
+  begin
+    hConnect := InternetOpenUrl(hInternet, PChar(URL), nil, 0, INTERNET_FLAG_RELOAD, 0);
+    if Assigned(hConnect) then
+    begin
+      dwBufferSize := SizeOf(dwStatusCode);
+      lpdwReserved := 0;
+      if HttpQueryInfo(hConnect, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER,
+        @dwStatusCode, dwBufferSize, lpdwReserved) then
+      begin
+        Result := (dwStatusCode = HTTP_STATUS_OK);
+      end;
+
+      InternetCloseHandle(hConnect);
+    end;
+
+    InternetCloseHandle(hInternet);
+  end;
+end;
+
+procedure NotifyServiceOpened(const URL: string);
+begin
+  Writeln('The service at ', URL, ' is open.');
+  PlaySound('SystemExclamation', 0, SND_ALIAS or SND_ASYNC);
+end;
+
+var
+  URL: string;
+  IsOpen: Boolean;
+begin
+  try
+    Write('Enter URL: ');
+    Readln(URL);
+
+    IsOpen := IsServiceOpen(URL);
+
+    if IsOpen then
+      NotifyServiceOpened(URL)
+    else
+      Writeln('The service at ', URL, ' is closed.');
+  except
+    on E: Exception do
+      Writeln(E.ClassName, ': ', E.Message);
+  end;
+
+  Write('Press <Enter> to exit...');
+  Readln;
+end.

@@ -1,0 +1,91 @@
+program URLServiceChecker;
+
+{$APPTYPE CONSOLE}
+
+uses
+  Winapi.WinInet,
+  Winapi.Windows,
+  System.SysUtils,
+  MMSystem;
+
+function IsServiceOpen(const URL: string): Boolean;
+var
+  hInternet: PHINTERNET;
+  hConnect: PHINTERNET;
+  dwStatusCode: DWORD;
+  dwBufferSize: DWORD;
+  lpdwReserved: DWORD;
+begin
+  Result := False;
+
+  hInternet := InternetOpen('URLChecker', INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+  if Assigned(hInternet) then
+  begin
+    hConnect := InternetOpenUrl(hInternet, PChar(URL), nil, 0, INTERNET_FLAG_RELOAD, 0);
+    if Assigned(hConnect) then
+    begin
+      dwBufferSize := SizeOf(dwStatusCode);
+      lpdwReserved := 0;
+      if HttpQueryInfo(hConnect, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER,
+        @dwStatusCode, dwBufferSize, lpdwReserved) then
+      begin
+        Result := (dwStatusCode = HTTP_STATUS_OK);
+      end;
+
+      InternetCloseHandle(hConnect);
+    end;
+
+    InternetCloseHandle(hInternet);
+  end;
+end;
+
+procedure NotifyServiceOpened(const URL: string);
+begin
+  Writeln;
+  Writeln('The service at ', URL, ' is open.');
+  PlaySound('SystemExclamation', 0, SND_ALIAS or SND_ASYNC);
+end;
+
+procedure ShowProgress;
+const
+  ProgressChars: array[0..3] of Char = ('|', '/', '-', '\');
+var
+  i: Integer;
+begin
+  for i := 0 to 29 do
+  begin
+    Write(ProgressChars[i mod 4]);
+    Sleep(100);
+    Write(#8); // Move cursor back to overwrite the character
+  end;
+end;
+
+var
+  URL: string;
+  IsOpen: Boolean;
+begin
+  try
+    Write('Enter URL: ');
+    Readln(URL);
+
+    while True do
+    begin
+      Writeln('Checking the service at ', URL, '...');
+      ShowProgress;
+      IsOpen := IsServiceOpen(URL);
+
+      if IsOpen then
+        NotifyServiceOpened(URL)
+      else
+        Writeln('The service at ', URL, ' is closed.');
+
+      Sleep(3000);  // Wait for 3 seconds before checking again
+    end;
+  except
+    on E: Exception do
+      Writeln(E.ClassName, ': ', E.Message);
+  end;
+
+  Write('Press <Enter> to exit...');
+  Readln;
+end.

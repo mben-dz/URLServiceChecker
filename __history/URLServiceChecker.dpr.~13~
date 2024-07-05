@@ -1,0 +1,108 @@
+program URLServiceChecker;
+
+{$APPTYPE CONSOLE}
+
+uses
+  Winapi.WinInet,
+  Winapi.Windows,
+  System.SysUtils,
+  MMSystem;
+
+procedure ShowProgress(const Msg: string; Progress: Integer);
+var
+  i: Integer;
+begin
+  Write(Msg, ' [');
+  for i := 1 to 50 do
+  begin
+    if i <= Progress div 2 then
+      Write('#')
+    else
+      Write(' ');
+  end;
+  Write('] ', Progress, '%');
+  Write(#13); // Move cursor back to the beginning of the line
+end;
+
+function IsServiceOpen(const URL: string): Boolean;
+var
+  hInternet: PHINTERNET;
+  hConnect: PHINTERNET;
+  dwStatusCode: DWORD;
+  dwBufferSize: DWORD;
+  lpdwReserved: DWORD;
+begin
+  Result := False;
+
+  ShowProgress('Opening Internet handle', 10);
+  Sleep(300); // Simulate delay
+  hInternet := InternetOpen('URLChecker', INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+
+  if Assigned(hInternet) then
+  begin
+    ShowProgress('Opening URL', 30);
+    Sleep(300); // Simulate delay
+    hConnect := InternetOpenUrl(hInternet, PChar(URL), nil, 0, INTERNET_FLAG_RELOAD, 0);
+
+    if Assigned(hConnect) then
+    begin
+      ShowProgress('Querying status code', 60);
+      Sleep(300); // Simulate delay
+      dwBufferSize := SizeOf(dwStatusCode);
+      lpdwReserved := 0;
+      if HttpQueryInfo(hConnect, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER,
+        @dwStatusCode, dwBufferSize, lpdwReserved) then
+      begin
+        Result := (dwStatusCode = HTTP_STATUS_OK);
+        ShowProgress('Processing response', 90);
+        Sleep(300); // Simulate delay
+      end;
+
+      InternetCloseHandle(hConnect);
+    end;
+
+    InternetCloseHandle(hInternet);
+  end;
+
+  ShowProgress('Done', 100);
+  Writeln; // Move to the next line
+end;
+
+procedure NotifyServiceOpened(const URL: string);
+begin
+  Writeln;
+  Writeln('The service at ', URL, ' is open.');
+  PlaySound('SystemAsterisk', 0, SND_ALIAS or SND_ASYNC);
+end;
+
+var
+  URL: string;
+  IsOpen: Boolean;
+begin
+  try
+    Write('Enter URL: ');
+    Readln(URL);
+
+    while True do
+    begin
+      Writeln('Checking the service at ', URL, '...');
+      IsOpen := IsServiceOpen(URL);
+
+      if IsOpen then
+      begin
+        NotifyServiceOpened(URL);
+        Break;
+      end
+      else
+        Writeln('The service at ', URL, ' is closed.');
+
+      Sleep(3000);  // Wait for 3 seconds before checking again
+    end;
+  except
+    on E: Exception do
+      Writeln(E.ClassName, ': ', E.Message);
+  end;
+
+  Write('Press <Enter> to exit...');
+  Readln;
+end.
